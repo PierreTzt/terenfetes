@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EventStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum SourceKind {
+  RSS
+  ICS
+  HTML
+  FB
+  FORM
+}
+
+model Event {
+  id            String         @id @default(uuid())
+  title         String
+  slug          String         @unique
+  description   String?
+  startAt       DateTime
+  endAt         DateTime?
+  venue         Venue?         @relation(fields: [venueId], references: [id])
+  venueId       String?
+  address       String?
+  city          String?
+  lat           Float?
+  lng           Float?
+  priceMin      Decimal?
+  priceMax      Decimal?
+  category      String[]
+  audience      String[]
+  imageUrl      String?
+  source        Source?        @relation(fields: [sourceId], references: [id])
+  sourceId      String?
+  sourceUid     String?        @unique
+  status        EventStatus    @default(PENDING)
+  accessibility Json?
+  tags          String[]
+  url           String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  metrics       MetricsEvent[]
+
+  @@index([startAt])
+  @@index([city])
+  @@index([status])
+}
+
+model Venue {
+  id      String  @id @default(uuid())
+  name    String
+  address String?
+  city    String?
+  lat     Float?
+  lng     Float?
+  url     String?
+  phone   String?
+  email   String?
+  events  Event[]
+
+  @@unique([name, city])
+  @@index([city])
+  @@index([lat, lng])
+}
+
+model Source {
+  id        String     @id @default(uuid())
+  kind      SourceKind
+  name      String
+  url       String?
+  parser    Json?
+  active    Boolean    @default(true)
+  lastRunAt DateTime?
+  events    Event[]
+
+  @@index([kind, active])
+}
+
+model MetricsEvent {
+  id          String   @id @default(uuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  metricDate  DateTime @default(now())
+  views       Int      @default(0)
+  clicksCta   Int      @default(0)
+  rsvpIntent  Int      @default(0)
+  ticketsSold Int      @default(0)
+  revenue     Decimal?
+
+  @@index([eventId, metricDate])
+}
+
+model Newsletter {
+  id          String   @id @default(uuid())
+  subject     String
+  content     String
+  sentAt      DateTime?
+  scheduledAt DateTime?
+  status      String   @default("draft")
+  openRate    Float?
+  clickRate   Float?
+  createdAt   DateTime @default(now())
+}
+
+model Subscriber {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  confirmed      Boolean   @default(false)
+  confirmToken   String?   @unique
+  unsubscribed   Boolean   @default(false)
+  unsubscribeToken String? @unique
+  city           String?
+  categories     String[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([email])
+  @@index([confirmed, unsubscribed])
+}

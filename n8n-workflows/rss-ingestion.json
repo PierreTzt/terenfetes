@@ -1,0 +1,94 @@
+{
+  "name": "RSS Feed Ingestion - Territoire en Fête",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "",
+      "id": "schedule-trigger",
+      "credentials": {},
+      "notes": "Trigger every 6 hours"
+    },
+    {
+      "parameters": {
+        "url": "https://example.com/events.rss",
+        "options": {}
+      },
+      "name": "Fetch RSS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "id": "fetch-rss"
+    },
+    {
+      "parameters": {
+        "functionCode": "const Parser = require('rss-parser');\nconst parser = new Parser();\n\nconst rssContent = items[0].json.data;\nconst feed = await parser.parseString(rssContent);\n\nconst events = feed.items.map(item => ({\n  title: item.title,\n  description: item.contentSnippet || item.description,\n  startAt: item.pubDate || item.isoDate,\n  url: item.link,\n  sourceUid: item.guid || item.link,\n  sourceKind: 'RSS',\n  category: item.categories || [],\n}));\n\nreturn events.map(event => ({ json: event }));"
+      },
+      "name": "Parse RSS",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "id": "parse-rss"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract additional data from description\nconst item = $json;\n\n// Try to extract date from description\nconst dateRegex = /(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})/;\nconst dateMatch = item.description?.match(dateRegex);\n\nif (dateMatch && !item.startAt) {\n  item.startAt = new Date(dateMatch[0]).toISOString();\n}\n\n// Try to extract city\nconst cityRegex = /à ([A-ZÀ-Ÿ][a-zà-ÿ\\-]+(?:\\s[A-ZÀ-Ÿ][a-zà-ÿ\\-]+)*)/;\nconst cityMatch = item.description?.match(cityRegex);\n\nif (cityMatch) {\n  item.city = cityMatch[1];\n}\n\n// Try to extract venue\nconst venueRegex = /lieu[\\s:]+([^\\.,]+)/i;\nconst venueMatch = item.description?.match(venueRegex);\n\nif (venueMatch) {\n  item.venueName = venueMatch[1].trim();\n}\n\n// Try to extract price\nconst priceRegex = /(\\d+(?:[,\\.]\\d{2})?)\\s*€/;\nconst priceMatch = item.description?.match(priceRegex);\n\nif (priceMatch) {\n  item.priceMin = parseFloat(priceMatch[1].replace(',', '.'));\n}\n\n// Check for free event\nif (item.description?.match(/gratuit|entrée libre/i)) {\n  item.priceMin = 0;\n}\n\nreturn { json: item };"
+      },
+      "name": "Enrich Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "id": "enrich-data"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SITE_URL}}/api/ingest/webhook/{{$env.SOURCE_ID}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WEBHOOK_SECRET}}"
+            }
+          ]
+        },
+        "options": {},
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ $json }}"
+      },
+      "name": "Send to API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "id": "send-to-api"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Fetch RSS Feed", "type": "main", "index": 0 }]]
+    },
+    "Fetch RSS Feed": {
+      "main": [[{ "node": "Parse RSS", "type": "main", "index": 0 }]]
+    },
+    "Parse RSS": {
+      "main": [[{ "node": "Enrich Data", "type": "main", "index": 0 }]]
+    },
+    "Enrich Data": {
+      "main": [[{ "node": "Send to API", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
