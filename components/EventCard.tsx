@@ -1,163 +1,179 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
+import { Calendar, Clock, MapPin, Banknote, ChevronRight } from 'lucide-react'
 import { EventPublicDTO } from '@/types'
-import { formatEventDate, formatPrice, isNewEvent } from '@/utils/format'
+import { formatEventDateShort, formatTime, formatPrice, isNewEvent } from '@/utils/format'
+import Badge, { NewBadge } from './Badge'
 
 interface EventCardProps {
   event: EventPublicDTO
-  isNew?: boolean
 }
 
-export default function EventCard({ event, isNew }: EventCardProps) {
-  const maxBadges = 2
-  const visibleCategories = event.category.slice(0, maxBadges)
-  const remainingCount = event.category.length - maxBadges
+export default function EventCard({ event }: EventCardProps) {
+  const maxBadges = 2 // Limit to 2 badges per design system
+  const visibleBadges = event.badges?.slice(0, maxBadges) || []
+  const remainingBadgeCount = (event.badges?.length || 0) - maxBadges
+  const showNewBadge = isNewEvent(event.startAt)
 
   return (
     <Link
       href={`/evenement/${event.slug}`}
-      className="group block bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-200 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-      aria-label={`Voir l'événement ${event.title}`}
+      className="group flex flex-col bg-white border border-bg-1 overflow-hidden focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition-all duration-200 hover:shadow-[var(--shadow-hover)]"
+      style={{
+        borderRadius: 'var(--radius-card)'
+      }}
+      aria-label={`Voir l'événement ${event.title}${event.isSponsored ? ' (Sponsorisé)' : ''}`}
     >
-      {/* Image with 16:9 ratio */}
-      <div className="relative w-full aspect-video bg-gray-200">
+      {/* Image 16:9 with filter */}
+      <div className="relative w-full aspect-video overflow-hidden">
         {event.imageUrl ? (
           <Image
             src={event.imageUrl}
             alt={event.title}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-200"
+            className="object-cover img-treated group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
             placeholder="blur"
             blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABQODxIPDRQSEBIXFRQYHjIhHhwcHj0sLiQySUBMS0dARkVQWnNiUFVtVkVGZIhlbXd7gYKBTmCNl4x9lnN+gXz/2wBDARUXFx4aHjshITt8U0ZTfHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHz/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWEREiMxUf/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-            <svg
-              className="w-16 h-16 text-gray-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
+          <div className="absolute inset-0 flex items-center justify-center bg-brand-50">
+            {/* Uniform fallback */}
+            <Calendar className="w-16 h-16 text-brand opacity-30" />
           </div>
         )}
 
-        {/* New badge */}
-        {isNew && (
-          <div className="absolute top-3 left-3">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-500 text-white shadow-lg">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Nouveau
+        {/* New badge (< 72h) - top left corner, 12px */}
+        {showNewBadge && (
+          <div className="absolute top-2 left-2">
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[12px] font-semibold bg-[#FFF4E0] text-[#B45309] border border-[#B45309]/20" style={{ borderRadius: 'var(--radius-badge)' }}>
+              <span>✨</span>
+              <span>Nouveau</span>
             </span>
+          </div>
+        )}
+
+        {/* Top right corner - Sponsored badge or Chevron on hover */}
+        {event.isSponsored ? (
+          <div className="absolute top-2 right-2">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-brand-50 text-brand border border-brand/30"
+              style={{ borderRadius: 'var(--radius-badge)' }}
+            >
+              ⭐ Sponsorisé
+            </span>
+          </div>
+        ) : (
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="bg-white/90 backdrop-blur-sm rounded-full p-1.5">
+              <ChevronRight className="w-5 h-5 text-brand" />
+            </div>
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div className="p-5">
-        {/* Title - clamp to 2 lines */}
-        <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 min-h-[3.5rem]">
-          {event.title}
-        </h3>
-
-        {/* Date */}
-        <div className="flex items-center text-sm text-gray-600 mb-2">
-          <svg
-            className="w-4 h-4 mr-2 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-          <time dateTime={event.startAt} className="line-clamp-1">
-            {formatEventDate(event.startAt)}
-          </time>
-        </div>
-
-        {/* Venue */}
-        {event.venue && (
-          <div className="flex items-center text-sm text-gray-600 mb-3">
-            <svg
-              className="w-4 h-4 mr-2 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            <span className="line-clamp-1">
-              {event.venue.name}
-              {event.venue.city && `, ${event.venue.city}`}
-            </span>
-          </div>
-        )}
-
-        {/* Categories - limit to 3, show +X for remaining */}
-        {event.category.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {visibleCategories.map((cat) => (
+      <div className="p-3 flex flex-col flex-1">
+        {/* Badges - categories, audience, options */}
+        {(event.category?.length || event.audience?.length || event.indoor !== undefined || event.pmr) && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {/* Categories - max 2 */}
+            {event.category?.slice(0, 2).map((cat) => (
               <span
                 key={cat}
-                className="inline-block px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full border border-blue-200"
+                className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-brand text-white"
+                style={{ borderRadius: 'var(--radius-badge)' }}
               >
                 {cat}
               </span>
             ))}
-            {remainingCount > 0 && (
-              <span className="inline-block px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-600 rounded-full border border-gray-200">
-                +{remainingCount}
+
+            {/* Audience - first one only */}
+            {event.audience?.[0] && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-success text-white"
+                style={{ borderRadius: 'var(--radius-badge)' }}
+              >
+                {event.audience[0]}
               </span>
             )}
+
+            {/* Indoor/Outdoor */}
+            {event.indoor !== undefined && event.indoor !== null && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-[#E8EEFF] text-brand"
+                style={{ borderRadius: 'var(--radius-badge)' }}
+              >
+                {event.indoor ? '🏠' : '🌳'}
+              </span>
+            )}
+
+            {/* PMR */}
+            {event.pmr && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 text-xs font-medium"
+                style={{
+                  borderRadius: 'var(--radius-badge)',
+                  backgroundColor: 'var(--color-badge-accessible-bg)',
+                  color: 'var(--color-badge-accessible-text)'
+                }}
+              >
+                ♿
+              </span>
+            )}
+
+            {/* System badges (free, etc.) - max 1 */}
+            {visibleBadges.slice(0, 1).map((badge) => (
+              <Badge key={badge} badge={badge} size="sm" />
+            ))}
           </div>
         )}
 
-        {/* Price */}
-        {(event.price?.min !== undefined || event.price?.max !== undefined) && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">
+        {/* Title - clamp to 2 lines */}
+        <h3 className="text-lg font-semibold text-ink mb-1.5 line-clamp-2 leading-tight min-h-[3rem]">
+          {event.title}
+        </h3>
+
+        {/* Metadata - single line: ville · date · heure · prix */}
+        <div className="flex items-center gap-2 text-xs text-muted-700 mb-auto">
+          {/* City */}
+          {event.city && (
+            <>
+              <span className="flex items-center gap-1 truncate">
+                <MapPin className="w-[18px] h-[18px] flex-shrink-0" style={{ color: '#3A4253' }} />
+                <span className="truncate">{event.city}</span>
+              </span>
+              <span className="text-muted-400">·</span>
+            </>
+          )}
+
+          {/* Date */}
+          <time dateTime={event.startAt} className="flex items-center gap-1">
+            <Calendar className="w-[18px] h-[18px]" style={{ color: '#3A4253' }} />
+            <span>{formatEventDateShort(event.startAt)}</span>
+          </time>
+
+          {/* Time */}
+          <span className="text-muted-400">·</span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-[18px] h-[18px]" style={{ color: '#3A4253' }} />
+            <span>{formatTime(event.startAt)}</span>
+          </span>
+
+          {/* Price */}
+          {(event.price?.min !== undefined || event.price?.max !== undefined) && (
+            <>
+              <span className="text-muted-400">·</span>
+              <span className="flex items-center gap-1 font-semibold text-ink">
+                <Banknote className="w-[18px] h-[18px] flex-shrink-0" style={{ color: '#3A4253' }} />
                 {formatPrice(event.price.min, event.price.max)}
               </span>
-              <span className="text-xs text-blue-600 font-medium group-hover:underline">
-                Voir détails →
-              </span>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </Link>
   )

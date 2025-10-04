@@ -1,9 +1,26 @@
 import { prisma } from './prisma'
 import { Resend } from 'resend'
-import { NewsletterTemplate } from '@/emails/NewsletterTemplate'
-import { NewsletterEventDTO } from '@/types'
+import WeeklyNewsletter from '@/emails/WeeklyNewsletter'
+import { getUnsubscribeUrl } from '@/app/api/newsletter/unsubscribe/[token]/route'
+import crypto from 'crypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+interface NewsletterEventDTO {
+  title: string
+  slug: string
+  startAt: string
+  imageUrl?: string
+  venue?: {
+    name: string
+    city?: string
+  }
+  price?: {
+    min?: number
+    max?: number
+  }
+  category: string[]
+}
 
 export async function buildWeeklyNewsletter(): Promise<{ events: NewsletterEventDTO[], subject: string }> {
   // Get events for the next 7 days
@@ -55,13 +72,18 @@ export async function buildWeeklyNewsletter(): Promise<{ events: NewsletterEvent
     .slice(0, 8)
 
   const eventsDTO: NewsletterEventDTO[] = topEvents.map((event) => ({
-    id: event.id,
     title: event.title,
     slug: event.slug,
     startAt: event.startAt.toISOString(),
     imageUrl: event.imageUrl || undefined,
-    city: event.city || undefined,
-    venue: event.venue?.name,
+    venue: event.venue ? {
+      name: event.venue.name,
+      city: event.venue.city || undefined,
+    } : undefined,
+    price: {
+      min: event.priceMin ? parseFloat(event.priceMin.toString()) : undefined,
+      max: event.priceMax ? parseFloat(event.priceMax.toString()) : undefined,
+    },
     category: event.category,
   }))
 
@@ -70,26 +92,27 @@ export async function buildWeeklyNewsletter(): Promise<{ events: NewsletterEvent
   return { events: eventsDTO, subject }
 }
 
-export async function sendNewsletter(to: string[], subject: string, events: NewsletterEventDTO[]) {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-
+export async function sendNewsletter(email: string, subject: string, events: NewsletterEventDTO[]) {
   try {
+    // Get unsubscribe URL for this specific email
+    const unsubscribeUrl = getUnsubscribeUrl(email)
+
     const { data, error } = await resend.emails.send({
-      from: 'Territoire en Fête <noreply@territoireenfete.fr>',
-      to,
+      from: 'Territoire en Fête <newsletter@territoireenfete.fr>',
+      to: email,
       subject,
-      react: NewsletterTemplate({ events, baseUrl }),
+      react: WeeklyNewsletter({ events, unsubscribeUrl }),
     })
 
     if (error) {
-      console.error('Error sending newsletter:', error)
-      return { success: false, error }
+      console.error(`Error sending newsletter to ${email}:`, error)
+      return { success: false, error, email }
     }
 
-    return { success: true, data }
+    return { success: true, data, email }
   } catch (error) {
-    console.error('Error sending newsletter:', error)
-    return { success: false, error }
+    console.error(`Error sending newsletter to ${email}:`, error)
+    return { success: false, error, email }
   }
 }
 
@@ -97,24 +120,39 @@ export async function sendNewsletterToAllSubscribers(subject: string, events: Ne
   const subscribers = await prisma.subscriber.findMany({
     where: {
       confirmed: true,
-      unsubscribed: false,
     },
     select: {
       email: true,
     },
   })
 
-  const emails = subscribers.map((s) => s.email)
-
-  // Send in batches of 100
-  const batchSize = 100
+  // Send individually (not in batch) to personalize unsubscribe links
   const results = []
 
-  for (let i = 0; i < emails.length; i += batchSize) {
-    const batch = emails.slice(i, i + batchSize)
-    const result = await sendNewsletter(batch, subject, events)
+  for (const subscriber of subscribers) {
+    const result = await sendNewsletter(subscriber.email, subject, events)
     results.push(result)
+
+    // Small delay to avoid rate limiting
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
 
-  return results
+  const successful = results.filter((r) => r.success).length
+  const failed = results.filter((r) => !r.success).length
+
+  // Create newsletter record
+  await prisma.newsletter.create({
+    data: {
+      subject,
+      sentAt: new Date(),
+      recipientCount: successful,
+    },
+  })
+
+  return {
+    total: subscribers.length,
+    successful,
+    failed,
+    results,
+  }
 }

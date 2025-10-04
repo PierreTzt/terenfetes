@@ -124,11 +124,15 @@ export default function MapView({ events }: MapViewProps) {
       const { cluster: isCluster, point_count } = cluster.properties as any
 
       if (isCluster) {
-        // Cluster marker
+        // Cluster marker - wrapper element for Mapbox
         const el = document.createElement('div')
-        el.className = 'cluster-marker'
-        el.innerHTML = `<div class="cluster-content">${point_count}</div>`
-        el.style.cssText = `
+        el.className = 'cluster-marker-wrapper'
+
+        // Inner element for styling and hover effects
+        const inner = document.createElement('div')
+        inner.className = 'cluster-marker'
+        inner.innerHTML = `<div class="cluster-content">${point_count}</div>`
+        inner.style.cssText = `
           width: ${30 + (point_count / points.length) * 20}px;
           height: ${30 + (point_count / points.length) * 20}px;
           background-color: #3b82f6;
@@ -139,23 +143,25 @@ export default function MapView({ events }: MapViewProps) {
           cursor: pointer;
           transition: transform 0.2s;
         `
-        el.querySelector('.cluster-content')!.setAttribute(
+        inner.querySelector('.cluster-content')!.setAttribute(
           'style',
           'color: white; font-weight: bold; font-size: 14px;'
         )
 
-        el.addEventListener('mouseenter', () => {
-          el.style.transform = 'scale(1.2)'
+        inner.addEventListener('mouseenter', () => {
+          inner.style.transform = 'scale(1.2)'
         })
-        el.addEventListener('mouseleave', () => {
-          el.style.transform = 'scale(1)'
+        inner.addEventListener('mouseleave', () => {
+          inner.style.transform = 'scale(1)'
         })
+
+        el.appendChild(inner)
 
         const marker = new mapboxgl.Marker(el)
           .setLngLat([lng, lat])
           .addTo(map.current!)
 
-        el.addEventListener('click', () => {
+        inner.addEventListener('click', () => {
           if (map.current) {
             map.current.easeTo({
               center: [lng, lat],
@@ -166,65 +172,80 @@ export default function MapView({ events }: MapViewProps) {
 
         markersRef.current.push(marker)
       } else {
-        // Individual event marker
+        // Individual event marker - wrapper element for Mapbox
         const event = cluster.properties as any
         const el = document.createElement('div')
-        el.className = 'event-marker'
-        el.innerHTML = '📍'
-        el.style.cssText = `
+        el.className = 'event-marker-wrapper'
+
+        // Inner element for styling and hover effects
+        const inner = document.createElement('div')
+        inner.className = 'event-marker'
+        inner.innerHTML = '📍'
+        inner.style.cssText = `
           font-size: 24px;
           cursor: pointer;
           transition: transform 0.2s;
         `
 
-        el.addEventListener('mouseenter', () => {
-          el.style.transform = 'scale(1.3)'
+        inner.addEventListener('mouseenter', () => {
+          inner.style.transform = 'scale(1.3)'
         })
-        el.addEventListener('mouseleave', () => {
-          el.style.transform = 'scale(1)'
+        inner.addEventListener('mouseleave', () => {
+          inner.style.transform = 'scale(1)'
         })
+
+        el.appendChild(inner)
 
         const marker = new mapboxgl.Marker(el)
           .setLngLat([lng, lat])
           .addTo(map.current!)
 
-        // Create popup
+        // Create popup with design system styles
         const popupContent = `
-          <div class="mapbox-popup-content" style="min-width: 200px;">
+          <div class="mapbox-popup-content" style="min-width: 240px; font-family: var(--font-inter), system-ui, sans-serif; padding: 0;">
             ${
               event.imageUrl
-                ? `<img src="${event.imageUrl}" alt="${event.title}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px 8px 0 0; margin: -10px -10px 10px -10px;" />`
+                ? `<img src="${event.imageUrl}" alt="${event.title}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 14px 14px 0 0; display: block; margin: 0 0 12px 0;" />`
                 : ''
             }
-            <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: #1f2937;">${
+            <div style="padding: 0 15px 15px 15px;">
+            <h3 style="font-size: 16px; line-height: 22px; font-weight: 600; margin: 0 0 12px 0; color: #0B1020; font-family: var(--font-inter), system-ui, sans-serif;">${
               event.title
             }</h3>
-            <p style="font-size: 13px; color: #6b7280; margin: 4px 0;">
-              📅 ${formatEventDate(event.startAt)}
-            </p>
-            ${
-              event.venue
-                ? `<p style="font-size: 13px; color: #6b7280; margin: 4px 0;">📍 ${event.venue}</p>`
-                : ''
-            }
-            ${
-              event.city
-                ? `<p style="font-size: 13px; color: #6b7280; margin: 4px 0;">${event.city}</p>`
-                : ''
-            }
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+              <p style="font-size: 14px; line-height: 20px; color: #3A4253; margin: 0; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 16px;">📅</span>
+                <span>${formatEventDate(event.startAt)}</span>
+              </p>
+              ${
+                event.city
+                  ? `<p style="font-size: 14px; line-height: 20px; color: #3A4253; margin: 0; display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 16px;">📍</span>
+                      <span>${event.city}${event.venue ? ' · ' + event.venue : ''}</span>
+                    </p>`
+                  : event.venue
+                  ? `<p style="font-size: 14px; line-height: 20px; color: #3A4253; margin: 0; display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 16px;">📍</span>
+                      <span>${event.venue}</span>
+                    </p>`
+                  : ''
+              }
+            </div>
             <a href="/evenement/${
               event.slug
-            }" style="display: inline-block; margin-top: 12px; padding: 8px 16px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 600;">
+            }" style="display: inline-block; width: 100%; text-align: center; padding: 10px 16px; background-color: #264CFF; color: white; text-decoration: none; border-radius: 12px; font-size: 14px; line-height: 20px; font-weight: 600; transition: background-color 0.2s; box-sizing: border-box;">
               Voir l'événement
             </a>
+            </div>
           </div>
         `
 
         const popup = new mapboxgl.Popup({
           offset: 25,
-          closeButton: true,
+          closeButton: false,
           closeOnClick: true,
-          maxWidth: '300px',
+          maxWidth: '320px',
+          className: 'custom-mapbox-popup',
         }).setHTML(popupContent)
 
         marker.setPopup(popup)

@@ -123,6 +123,8 @@ export async function POST(request: NextRequest) {
         audience: body.audience || [],
         imageUrl: body.imageUrl,
         url: body.url,
+        indoor: body.indoor,
+        pmr: body.pmr || false,
         status: 'PENDING', // All form submissions start as PENDING
         tags: [],
       },

@@ -48,6 +48,8 @@ export async function GET(
       city: event.city || undefined,
       lat: event.lat || undefined,
       lng: event.lng || undefined,
+      indoor: event.indoor ?? undefined,
+      pmr: event.pmr ?? undefined,
     }
 
     return NextResponse.json(eventDTO)
