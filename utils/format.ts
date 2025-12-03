@@ -48,16 +48,14 @@ export function formatTime(date: Date | string): string {
 /**
  * Format price with non-breaking space before €
  * Examples:
+ * - (undefined, undefined) => "Gratuit"
  * - (0, 0) => "Gratuit"
  * - (15, 15) => "15 €"
  * - (15, 25) => "15–25 €"
  */
 export function formatPrice(min?: number, max?: number): string {
-  if (min === undefined && max === undefined) {
-    return ''
-  }
-
-  if (min === 0 && (max === undefined || max === 0)) {
+  // Si pas de prix défini ou prix à 0, c'est gratuit
+  if ((min === undefined || min === 0) && (max === undefined || max === 0)) {
     return 'Gratuit'
   }
 
@@ -77,7 +75,7 @@ export function formatPrice(min?: number, max?: number): string {
     return `Jusqu'à ${max}\u00A0€`
   }
 
-  return ''
+  return 'Gratuit'
 }
 
 /**

@@ -79,7 +79,15 @@ export default async function EventPage({
 
   const dateStr = formatEventDateShort(event.startAt)
   const timeStr = formatTime(event.startAt)
+  const endDateStr = endDate ? formatEventDateShort(endDate) : null
   const endTimeStr = endDate ? formatTime(endDate) : null
+
+  // Check if end date is on a different day
+  const isDifferentDay = endDate && (
+    startDate.getDate() !== endDate.getDate() ||
+    startDate.getMonth() !== endDate.getMonth() ||
+    startDate.getFullYear() !== endDate.getFullYear()
+  )
 
   // Prepare location for calendar
   const location = event.venue
@@ -207,43 +215,55 @@ export default async function EventPage({
                     </div>
                     <div>
                       <p className="small font-semibold text-muted-400 mb-1">Date et heure</p>
-                      <p className="text-base font-semibold text-ink">{dateStr}</p>
-                      <p className="text-sm text-muted-700">
-                        {timeStr}
-                        {endTimeStr && ` – ${endTimeStr}`}
-                      </p>
+                      {endTimeStr && isDifferentDay ? (
+                        <>
+                          <p className="text-sm text-muted-700">Du {dateStr} à {timeStr}</p>
+                          <p className="text-sm text-muted-700">au {endDateStr} à {endTimeStr}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-base font-semibold text-ink">{dateStr}</p>
+                          <p className="text-sm text-muted-700">
+                            {endTimeStr ? `De ${timeStr} à ${endTimeStr}` : timeStr}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   {/* Location */}
-                  {event.venue && (
+                  {(event.venue || event.city) && (
                     <div className="flex items-start gap-4">
                       <div className="flex-shrink-0 w-12 h-12 bg-teal/10 rounded-xl flex items-center justify-center">
                         <MapPin className="w-6 h-6 text-teal" />
                       </div>
                       <div>
                         <p className="small font-semibold text-muted-400 mb-1">Lieu</p>
-                        <p className="text-base font-semibold text-ink">{event.venue.name}</p>
-                        {event.venue.address && <p className="text-sm text-muted-700">{event.venue.address}</p>}
-                        {event.venue.city && <p className="text-sm text-muted-700">{event.venue.city}</p>}
+                        {event.venue ? (
+                          <>
+                            <p className="text-base font-semibold text-ink">{event.venue.name}</p>
+                            {event.venue.address && <p className="text-sm text-muted-700">{event.venue.address}</p>}
+                            {event.venue.city && <p className="text-sm text-muted-700">{event.venue.city}</p>}
+                          </>
+                        ) : (
+                          <p className="text-base font-semibold text-ink">{event.city}</p>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {/* Price */}
-                  {(event.price?.min !== undefined || event.price?.max !== undefined) && (
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-12 h-12 bg-accent/20 rounded-xl flex items-center justify-center">
-                        <Banknote className="w-6 h-6 text-accent" />
-                      </div>
-                      <div>
-                        <p className="small font-semibold text-muted-400 mb-1">Tarif</p>
-                        <p className="text-lg font-bold text-ink">
-                          {formatPrice(event.price.min, event.price.max)}
-                        </p>
-                      </div>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-accent/20 rounded-xl flex items-center justify-center">
+                      <Banknote className="w-6 h-6 text-accent" />
                     </div>
-                  )}
+                    <div>
+                      <p className="small font-semibold text-muted-400 mb-1">Tarif</p>
+                      <p className="text-lg font-bold text-ink">
+                        {formatPrice(event.price?.min, event.price?.max)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Description - "À propos" */}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateEventSlug, generateUniqueSlug } from '@/utils/slug'
-import { geocodeAddress } from '@/utils/geocode'
+import { geocodeEvent } from '@/utils/geocode'
 import { getClientIp, checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
@@ -82,17 +82,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Geocode address if no coordinates provided
-    let lat: number | null = null
-    let lng: number | null = null
+    const coordinates = await geocodeEvent({
+      lat: body.lat,
+      lng: body.lng,
+      address: body.address,
+      city: body.city,
+      venueName: body.venueName
+    })
 
-    const address = body.address || `${body.venueName || ''}, ${body.city || ''}`
-    if (address.trim()) {
-      const geocoded = await geocodeAddress(address)
-      if (geocoded) {
-        lat = geocoded.lat
-        lng = geocoded.lng
-      }
-    }
+    const lat = coordinates?.lat ?? body.lat ?? null
+    const lng = coordinates?.lng ?? body.lng ?? null
 
     // Generate unique slug
     const baseSlug = generateEventSlug(body.title, body.city, body.startAt)

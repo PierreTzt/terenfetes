@@ -57,3 +57,50 @@ async function geocodeMapbox(address: string, apiKey: string): Promise<GeocodedL
 
   return null
 }
+
+/**
+ * Geocode an event based on its location data
+ * Returns coordinates if successful, or null if already has coordinates or geocoding failed
+ */
+export async function geocodeEvent(eventData: {
+  lat?: number | null
+  lng?: number | null
+  address?: string | null
+  city?: string | null
+  venueName?: string | null
+}): Promise<{ lat: number; lng: number } | null> {
+  // Skip if already has coordinates
+  if (eventData.lat && eventData.lng) {
+    return null
+  }
+
+  // Build address string from available data
+  const addressParts: string[] = []
+
+  if (eventData.address) {
+    addressParts.push(eventData.address)
+  } else if (eventData.venueName) {
+    addressParts.push(eventData.venueName)
+  }
+
+  if (eventData.city) {
+    addressParts.push(eventData.city)
+  }
+
+  // Need at least one address component
+  if (addressParts.length === 0) {
+    return null
+  }
+
+  const addressString = addressParts.join(', ')
+  const geocoded = await geocodeAddress(addressString)
+
+  if (geocoded) {
+    return {
+      lat: geocoded.lat,
+      lng: geocoded.lng
+    }
+  }
+
+  return null
+}
