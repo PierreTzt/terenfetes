@@ -1,6 +1,24 @@
 # Territoire en Fête 🎉
 
-Plateforme d'agrégation et diffusion automatique d'événements locaux. V1 production-ready.
+Plateforme d'agrégation et diffusion automatique d'événements locaux.
+
+> [!WARNING]
+> **Projet abandonné, publié tel quel.** Ce dépôt n'est plus maintenu : pas de support, pas de corrections, pas de revue de PR.
+> Le code est partagé pour qu'on puisse s'en inspirer ou le reprendre (fork), **pas pour être déployé en l'état**.
+> Lire la section [État du projet](#état-du-projet) avant toute chose.
+
+## État du projet
+
+Dernier travail : décembre 2025. Constat au moment de la publication :
+
+- **Le projet ne compile pas.** `npx tsc --noEmit` remonte ~98 erreurs et `npm run build` échoue au lint (~60 erreurs ESLint).
+- **Plusieurs fonctionnalités sont désynchronisées du schéma Prisma.** Le code des photos (`app/api/photos/**`), des listes collaboratives (`app/api/lists/**`), des métriques agrégées dans `app/api/events/route.ts` et d'une partie de la newsletter utilise des champs qui n'existent pas dans `prisma/schema.prisma` (ex. `name`/`isPublic`/`creator` au lieu de `title`/`public`/`user`, `url`/`caption`/`uploader` au lieu de `imageUrl`/`user`). Ces fonctionnalités ne marcheraient pas à l'exécution.
+- **Il n'y a pas d'authentification réelle.** La « connexion » stocke simplement l'email dans `localStorage`, et une vingtaine de routes d'écriture (`/api/users/[id]`, `/api/settings`, `/api/photos/[id]/moderate`, `/api/lists/**`…) ne vérifient pas qui appelle. L'administration repose sur une clé partagée `ADMIN_API_KEY` saisie dans le navigateur.
+- **Aucun test.**
+
+Ce qui est en place et peut servir de base : le modèle de données (`prisma/schema.prisma`), l'ingestion par webhook, la déduplication (`lib/deduplication.ts`), le géocodage, la carte Mapbox avec clustering, la newsletter en double opt-in (React Email + Resend), le SEO (sitemap, schema.org) et un exemple de workflow n8n.
+
+Pour reprendre le projet, il faudrait au minimum : brancher une vraie authentification (Supabase Auth par exemple) et protéger chaque route d'écriture, puis aligner le code et le schéma Prisma jusqu'à ce que le build passe.
 
 ## 📋 Vue d'ensemble
 
@@ -8,7 +26,9 @@ Plateforme d'agrégation et diffusion automatique d'événements locaux. V1 prod
 
 **Cibles** : Mairies, offices de tourisme, intercommunalités, centres-villes, tiers-lieux.
 
-## 🚀 Fonctionnalités V1
+## 🚀 Fonctionnalités visées
+
+Périmètre prévu pour la V1. Tout n'est pas terminé ni fonctionnel, voir [État du projet](#état-du-projet).
 
 ### Ingestion
 - ✅ Import RSS/ICS automatique
@@ -35,16 +55,15 @@ Plateforme d'agrégation et diffusion automatique d'événements locaux. V1 prod
 
 ## 🛠 Stack technique
 
-- **Frontend** : Next.js 14 (App Router) + Tailwind CSS
+- **Frontend** : Next.js 15 (App Router, Turbopack) + React 19 + Tailwind CSS 4
 - **Backend** : Next.js API Routes
-- **Base de données** : Supabase PostgreSQL + Prisma ORM
-- **Recherche** : Algolia
-- **Cartes** : Mapbox GL
+- **Base de données** : Supabase PostgreSQL + Prisma ORM 6
+- **Recherche** : recherche en base (insensible aux accents, synonymes). Un client Algolia existe dans `lib/algolia.ts` mais n'est branché nulle part.
+- **Cartes** : Mapbox GL + Supercluster
 - **Emails** : Resend + React Email
-- **Automations** : n8n (ETL, newsletter, social)
+- **Automations** : n8n (ingestion RSS)
 - **Analytics** : PostHog
-- **Observabilité** : Sentry
-- **Déploiement** : Vercel
+- **Déploiement visé** : Vercel
 
 ## 📦 Installation
 
@@ -60,7 +79,7 @@ Plateforme d'agrégation et diffusion automatique d'événements locaux. V1 prod
 1. **Cloner et installer les dépendances**
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/PierreTzt/terenfetes.git
 cd terenfetes
 npm install
 ```
@@ -73,41 +92,8 @@ Copier `.env.example` vers `.env.local` et remplir les valeurs :
 cp .env.example .env.local
 ```
 
-**Variables requises** :
+Voir [`.env.example`](.env.example) pour la liste des variables lues par le code.
 
-```env
-# Site
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-
-# Database (Supabase)
-DATABASE_URL=postgresql://user:password@host:5432/database
-
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# Mapbox
-NEXT_PUBLIC_MAPBOX_TOKEN=pk.your-token
-
-# Algolia
-NEXT_PUBLIC_ALGOLIA_APP_ID=your-app-id
-NEXT_PUBLIC_ALGOLIA_SEARCH_KEY=your-search-key
-ALGOLIA_ADMIN_KEY=your-admin-key
-
-# Resend
-RESEND_API_KEY=re_your_key
-
-# PostHog
-NEXT_PUBLIC_POSTHOG_KEY=phc_your_key
-
-# Geocoding
-GEOCODE_PROVIDER=opencage
-GEOCODE_API_KEY=your-geocode-key
-
-# Sécurité
-WEBHOOK_SECRET=your-secret
-METRICS_API_KEY=your-api-key
 ```
 
 3. **Initialiser la base de données**
@@ -233,20 +219,7 @@ WEBHOOK_SECRET=your-webhook-secret
 
 ## 🔍 Algolia
 
-### Configuration initiale
-
-```typescript
-import { configureAlgoliaIndex } from '@/lib/algolia'
-
-await configureAlgoliaIndex()
-```
-
-### Synchronisation automatique
-
-Les événements sont automatiquement synchronisés vers Algolia lors de :
-- Création (via webhook)
-- Mise à jour (via back-office)
-- Publication (changement de statut)
+`lib/algolia.ts` contient la configuration d'index et les fonctions de synchronisation, mais elles ne sont appelées nulle part : la recherche du site passe par la base (`lib/db-search.ts`).
 
 ## 🚢 Déploiement
 
@@ -328,23 +301,21 @@ SELECT * FROM "Event" WHERE status = 'PENDING';
 ### Sécurité applicative
 
 - ✅ RLS activé sur Supabase (configuration ci-dessus)
-- ✅ Endpoints sensibles protégés par tokens (WEBHOOK_SECRET, METRICS_API_KEY)
-- ✅ Validation des données en entrée (Zod + validations métier)
-- ✅ Rate limiting API :
+- ⚠️ Seuls l'ingestion (`WEBHOOK_SECRET`), le géocodage (`METRICS_API_KEY`) et les routes d'administration (`ADMIN_API_KEY`) sont protégés. Le reste des routes d'écriture est ouvert, voir [État du projet](#état-du-projet).
+- ✅ Validations métier à la main (pas de bibliothèque de schéma)
+- ✅ Rate limiting API (en mémoire, donc par instance) :
   - `/api/upload` : 10 uploads / heure / IP
   - `/api/events/submit` : 5 soumissions / 15 min / IP
 - ✅ Anti-spam : honeypot sur formulaire public
-- ✅ CORS configuré (uniquement domaines autorisés)
-- ✅ Sanitization des URLs externes
 - ✅ Images : validation type/taille + stockage sécurisé
 
 ### RGPD
 
 - ✅ Double opt-in newsletter obligatoire
 - ✅ Lien de désinscription dans chaque email
-- ✅ Pas de cookies analytics sans consentement (PostHog configuré)
+- ⚠️ Pas de bandeau de consentement : PostHog se charge sans demander l'accord
 - ✅ Droits d'image : checkbox obligatoire lors de l'upload
-- ✅ Politique de confidentialité à créer (template disponible)
+- ⚠️ Politique de confidentialité et mentions légales à compléter
 
 ### Variables sensibles
 
@@ -352,6 +323,7 @@ SELECT * FROM "Event" WHERE status = 'PENDING';
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `WEBHOOK_SECRET`
 - `METRICS_API_KEY`
+- `ADMIN_API_KEY`
 - `ALGOLIA_ADMIN_KEY`
 - `RESEND_API_KEY`
 
@@ -359,7 +331,6 @@ SELECT * FROM "Event" WHERE status = 'PENDING';
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_MAPBOX_TOKEN`
 - `NEXT_PUBLIC_ALGOLIA_APP_ID`
-- `NEXT_PUBLIC_ALGOLIA_SEARCH_KEY` (search-only key)
 - `NEXT_PUBLIC_POSTHOG_KEY`
 
 ## ♿️ Accessibilité
@@ -371,7 +342,7 @@ SELECT * FROM "Event" WHERE status = 'PENDING';
 - ✅ Alt texte sur toutes les images
 - ✅ Structure HTML sémantique
 
-## 📊 Analytics & Observabilité
+## 📊 Analytics
 
 ### PostHog (Analytics)
 
@@ -381,21 +352,9 @@ posthog.capture('event_view', { eventId: 'xxx' })
 posthog.capture('cta_click', { eventId: 'xxx' })
 ```
 
-### Sentry (Erreurs)
-
-Configurer `SENTRY_DSN` dans `.env.local`
-
 ## 🧪 Tests
 
-### Tests end-to-end (Playwright)
-
-```bash
-# Installer Playwright
-npm install -D @playwright/test
-
-# Lancer les tests
-npx playwright test
-```
+Aucun test n'a été écrit.
 
 ## 📝 Scripts disponibles
 
@@ -424,11 +383,11 @@ npm run db:studio    # Prisma Studio
 
 ## 📄 Licence
 
-Propriétaire - Tous droits réservés
+[GNU AGPL-3.0](LICENSE). Vous pouvez utiliser, modifier et redistribuer ce code, y compris commercialement. Si vous hébergez une version modifiée accessible à d'autres personnes (site, SaaS…), vous devez en publier le code source sous la même licence.
 
 ## 🤝 Support
 
-Pour toute question : contact@territoireenfete.fr
+Aucun. Le projet n'est plus maintenu. Forkez-le librement.
 
 ---
 
